@@ -5,6 +5,19 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
+      - name: build docker image
+        run: docker build -t biscarch/corgo-bot .
+      - name: save docker image
+        run: docker save -o $GITHUB_WORKSPACE/corgo-bot.tar biscarch/corgo-bot
+      - name: scp docker image to DO
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.DIGITAL_OCEAN_IP }}
+          username: ${{ secrets.DIGITAL_OCEAN_USER }}
+          key: ${{ secrets.DIGITAL_OCEAN_KEY }}
+          port: 22
+          source: "$GITHUB_WORKSPACE/corgo-bot.tar"
+          target: "/opt/corgo-bot.tar"
       - name: executing remote ssh commands
         uses: appleboy/ssh-action@master
         with:
@@ -13,5 +26,5 @@ jobs:
           key: ${{ secrets.DIGITAL_OCEAN_KEY }}
           port: 22
           script: |
-            echo "what"
-            whoami
+            docker load -i /opt/corgo-bot.tar
+            # rm /opt/corgo-bot.tar
