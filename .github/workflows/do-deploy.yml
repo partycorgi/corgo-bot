@@ -17,7 +17,7 @@ jobs:
           username: ${{ secrets.DIGITAL_OCEAN_USER }}
           key: ${{ secrets.DIGITAL_OCEAN_KEY }}
           port: 22
-          source: ${{env.GITHUB_WORKSPACE}}/corgo-bot.tar
+          source: ${{ env.GITHUB_WORKSPACE }}/corgo-bot.tar
           target: /opt/corgo-bot.tar
       - name: executing remote ssh commands
         uses: appleboy/ssh-action@master
