@@ -6,10 +6,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: ls
-        run: ls
-      - name: pwd
-        run: pwd
       - name: build docker image
         run: docker build -t biscarch/corgo-bot .
       - name: save docker image
@@ -21,8 +17,8 @@ jobs:
           username: ${{ secrets.DIGITAL_OCEAN_USER }}
           key: ${{ secrets.DIGITAL_OCEAN_KEY }}
           port: 22
-          source: "$GITHUB_WORKSPACE/corgo-bot.tar"
-          target: "/opt/corgo-bot.tar"
+          source: $GITHUB_WORKSPACE/corgo-bot.tar
+          target: /opt/corgo-bot.tar
       - name: executing remote ssh commands
         uses: appleboy/ssh-action@master
         with:
