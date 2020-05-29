@@ -1,5 +1,8 @@
 name: remote ssh command
-on: [push]
+on:
+  push:
+    branches:
+      - master
 jobs:
   build:
     name: Build
@@ -32,3 +35,8 @@ jobs:
             docker kill $(docker ps -q)
             docker run --env-file /opt/corgo-bot.env -d biscarch/corgo-bot:latest
             docker system prune -f
+      - name: Upload docker image artifact just in case
+        uses: actions/upload-artifact@v1
+        with:
+          name: homework
+          path: homework/math-homework.txt
