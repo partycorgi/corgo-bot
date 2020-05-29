@@ -18,7 +18,7 @@ jobs:
           key: ${{ secrets.DIGITAL_OCEAN_KEY }}
           port: 22
           source: corgo-bot.tar
-          target: /opt/corgo-bot.tar
+          target: /opt
       - name: executing remote ssh commands
         uses: appleboy/ssh-action@master
         with:
