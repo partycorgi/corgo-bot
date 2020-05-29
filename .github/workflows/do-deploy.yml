@@ -9,7 +9,7 @@ jobs:
       - name: build docker image
         run: |
           docker build -t biscarch/corgo-bot .
-          docker save -o $GITHUB_WORKSPACE/corgo-bot.tar biscarch/corgo-bot
+          docker save -o corgo-bot.tar biscarch/corgo-bot
       - name: scp docker image to DO
         uses: appleboy/scp-action@master
         with:
@@ -17,7 +17,7 @@ jobs:
           username: ${{ secrets.DIGITAL_OCEAN_USER }}
           key: ${{ secrets.DIGITAL_OCEAN_KEY }}
           port: 22
-          source: ${{ env.GITHUB_WORKSPACE }}/corgo-bot.tar
+          source: corgo-bot.tar
           target: /opt/corgo-bot.tar
       - name: executing remote ssh commands
         uses: appleboy/ssh-action@master
