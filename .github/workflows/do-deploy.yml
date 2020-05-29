@@ -28,4 +28,6 @@ jobs:
           port: 22
           script: |
             docker load -i /opt/corgo-bot.tar
-            # rm /opt/corgo-bot.tar
+            rm /opt/corgo-bot.tar
+            docker kill $(docker ps -q)
+            docker run -d biscarch/corgo-bot:latest
