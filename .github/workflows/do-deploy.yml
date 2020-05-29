@@ -5,11 +5,13 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
-      - name: executing remote ssh commands using password
+      - name: executing remote ssh commands
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.DIGITAL_OCEAN_IP }}
           username: ${{ secrets.DIGITAL_OCEAN_USER }}
           key: ${{ secrets.DIGITAL_OCEAN_KEY }}
           port: ${{ secrets.secrets.DIGITAL_OCEAN_SSH_PORT }}
-          script: whoami
+          script: |
+            echo "what"
+            whoami
