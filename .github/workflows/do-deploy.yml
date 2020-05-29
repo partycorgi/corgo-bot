@@ -31,3 +31,4 @@ jobs:
             rm /opt/corgo-bot.tar
             docker kill $(docker ps -q)
             docker run --env-file /opt/corgo-bot.env -d biscarch/corgo-bot:latest
+            docker system prune -f
