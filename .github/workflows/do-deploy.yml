@@ -5,10 +5,12 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     steps:
+      - name: ls
+        run: ls
+      - name: pwd
+        run: pwd
       - name: build docker image
-        run: |
-          ls
-          docker build -t biscarch/corgo-bot .
+        run: docker build -t biscarch/corgo-bot .
       - name: save docker image
         run: docker save -o $GITHUB_WORKSPACE/corgo-bot.tar biscarch/corgo-bot
       - name: scp docker image to DO
