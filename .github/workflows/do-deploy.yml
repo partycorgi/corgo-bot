@@ -38,5 +38,5 @@ jobs:
       - name: Upload docker image artifact just in case
         uses: actions/upload-artifact@v1
         with:
-          name: homework
-          path: homework/math-homework.txt
+          name: corgo-bot.tar
+          path: corgo-bot.tar
