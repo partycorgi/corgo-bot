@@ -2,7 +2,7 @@ name: remote ssh command
 on:
   push:
     branches:
-      - master
+      - corgi
 jobs:
   build:
     name: Build
