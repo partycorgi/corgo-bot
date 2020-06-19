@@ -29,4 +29,4 @@ cargo run
 
 Both instances of the bot are located entirely in their respective directories. They contain language-specific tooling (cargo, yarn, etc) and a `Dockerfile` [[1](./rust-bot/Dockerfile), [2](./js-bot/Dockerfile)] for production.
 
-A GitHub Action (in [`./github/workflows`](./github/workflows)) is responsible for deploying changes for each instance of the bot. The workflows run automatically on merge to master, upload .zips of the relevant docker image, and only run on changes to the relevant files (A change to the JS bot _does not_ trigger a deployment for the Rust bot).
+A GitHub Action (in [`./github/workflows`](./.github/workflows)) is responsible for deploying changes for each instance of the bot. The workflows run automatically on merge to master, upload .zips of the relevant docker image, and only run on changes to the relevant files (A change to the JS bot _does not_ trigger a deployment for the Rust bot).
