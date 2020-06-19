@@ -1,8 +1,10 @@
-name: remote ssh command
+name: Deploy JS bot
 on:
   push:
     branches:
       - corgi
+    paths:
+      - js-bot/**
 jobs:
   build:
     name: Build
@@ -11,8 +13,8 @@ jobs:
       - uses: actions/checkout@v2
       - name: build docker image
         run: |
-          docker build -t biscarch/corgo-bot .
-          docker save -o corgo-bot.tar biscarch/corgo-bot
+          docker build -t partycorgi/corgo-bot-js ./js-bot
+          docker save -o corgo-bot-js.tar partycorgi/corgo-bot-js
       - name: scp docker image to DO
         uses: appleboy/scp-action@master
         with:
@@ -20,7 +22,7 @@ jobs:
           username: ${{ secrets.DIGITAL_OCEAN_USER }}
           key: ${{ secrets.DIGITAL_OCEAN_KEY }}
           port: 22
-          source: corgo-bot.tar
+          source: corgo-bot-js.tar
           target: /opt
       - name: executing remote ssh commands
         uses: appleboy/ssh-action@master
@@ -30,13 +32,13 @@ jobs:
           key: ${{ secrets.DIGITAL_OCEAN_KEY }}
           port: 22
           script: |
-            docker load -i /opt/corgo-bot.tar
-            rm /opt/corgo-bot.tar
-            docker kill $(docker ps -q)
-            docker run --env-file /opt/corgo-bot.env -d biscarch/corgo-bot:latest
+            docker load -i /opt/corgo-bot-js.tar
+            rm /opt/corgo-bot-js.tar
+            docker kill $(docker ps --filter "label=corgo.language=js" -q)
+            docker run --env-file /opt/corgo-bot.env -d partycorgi/corgo-bot-js:latest
             docker system prune -f
       - name: Upload docker image artifact just in case
         uses: actions/upload-artifact@v1
         with:
-          name: corgo-bot.tar
-          path: corgo-bot.tar
+          name: corgo-bot-js.tar
+          path: corgo-bot-js.tar

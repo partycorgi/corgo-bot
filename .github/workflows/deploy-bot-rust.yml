@@ -1,0 +1,44 @@
+name: Deploy rust bot
+on:
+  push:
+    branches:
+      - corgi
+    paths:
+      - rust-bot/**
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: build docker image
+        run: |
+          docker build -t partycorgi/corgo-bot-rust ./rust-bot
+          docker save -o corgo-bot-rust.tar partycorgi/corgo-bot-rust
+      - name: scp docker image to DO
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.DIGITAL_OCEAN_IP }}
+          username: ${{ secrets.DIGITAL_OCEAN_USER }}
+          key: ${{ secrets.DIGITAL_OCEAN_KEY }}
+          port: 22
+          source: corgo-bot-rust.tar
+          target: /opt
+      - name: executing remote ssh commands
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DIGITAL_OCEAN_IP }}
+          username: ${{ secrets.DIGITAL_OCEAN_USER }}
+          key: ${{ secrets.DIGITAL_OCEAN_KEY }}
+          port: 22
+          script: |
+            docker load -i /opt/corgo-bot-rust.tar
+            rm /opt/corgo-bot-rust.tar
+            docker kill $(docker ps --filter "label=corgo.language=rust" -q)
+            docker run --env-file /opt/corgo-bot.env -d partycorgi/corgo-bot-rust:latest
+            docker system prune -f
+      - name: Upload docker image artifact just in case
+        uses: actions/upload-artifact@v1
+        with:
+          name: corgo-bot-rust.tar
+          path: corgo-bot-rust.tar
