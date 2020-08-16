@@ -1,14 +1,18 @@
-use std::{dbg, env};
+use std::env;
 
 use serenity::{
-    framework::standard::macros::{command, group, check},
-    framework::standard::{
-         Args, CheckResult, StandardFramework, CommandOptions, CommandResult},
+    framework::standard::macros::{check, command, group},
+    framework::standard::{Args, CheckResult, CommandOptions, CommandResult, StandardFramework},
     model::{
+        channel::{
+            ChannelType, GuildChannel, Message, PermissionOverwrite, PermissionOverwriteType,
+        },
         guild::Role,
-        permissions::Permissions, 
-        channel::{ChannelType, PermissionOverwrite, PermissionOverwriteType, Message}},
+        id::RoleId,
+        permissions::Permissions,
+    },
     prelude::*,
+    Error,
 };
 
 #[group]
@@ -29,74 +33,70 @@ fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
 }
 
 // This command provisions out a channel with permissions
-// to read/write for users with a role that matches the
-// channel.
+// to read/write for users with the corresponding role. It
+// will also make the channel read-only for other users.
 #[command]
 fn create_cohort(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
-    let cohort_name = args.single::<String>().unwrap();
-    create_role(ctx, msg, &cohort_name)
-    .and_then(|role| {
-        Ok(create_channel(ctx, msg, &cohort_name, role))
-    });
-    
-    
+    msg.channel_id
+        .say(&ctx.http, "Spinning up Adventure Club...")?;
+
+    let (cohort_name, channel_name) = gen_names(args.single::<String>().unwrap());
+    let role = create_role(ctx, msg, &cohort_name);
+    let channel = create_channel(ctx, msg, &channel_name, role);
+
+    match channel {
+        Ok(channel) => {
+            let reply_msg = format!(
+                "Successfully created {}! Feel free to add users.",
+                channel.name
+            );
+            msg.reply(&ctx.http, reply_msg).unwrap();
+        }
+        Err(_) => {
+            msg.reply(&ctx.http, "Failed to create cohort").unwrap();
+        }
+    };
+
     Ok(())
 }
 
-fn create_role(ctx: &mut Context, msg: &Message, role_name: &str) -> Result<Role, &'static str>{
-    let start_up_msg = "Spinning up Adventure Club...";
-    if let Err(error) = msg.channel_id.say(&ctx.http, start_up_msg) {
-        return Err("You shouldn't fuck up here.");
+fn create_role(ctx: &mut Context, msg: &Message, role_name: &str) -> Role {
+    let guild = msg.guild(&ctx.cache).unwrap();
+    let role = match guild.read().role_by_name(role_name) {
+        Some(role) => {
+            let content = format!("{} Role already exists!", role.name);
+            if let Err(error) = msg.channel_id.say(&ctx.http, content) {
+                println!("{:?}", error);
+            };
+            role.clone()
+        }
+        None => guild
+            .read()
+            .create_role(&ctx, |r| r.name(role_name))
+            .unwrap(),
     };
-
-    if let Some(guild) = msg.guild(&ctx.cache) {
-        let role = match guild.read().role_by_name(role_name) {
-            Some(role) => {
-                let content = format!("{} Role already exists!", role.name);
-                if let Err(error) = msg.channel_id.say(&ctx.http, content) {
-                    println!("{:?}", error);
-                };
-                role.clone()
-            },
-            None => {
-               guild.read().create_role(&ctx, |r| r.name(role_name)).unwrap()
-            }
-        };
-        return Ok(role);
-    };
-
-    return Err("Failed to generate Role");
+    return role;
 }
 
 // Permissions for chatting happen here
-fn create_channel(ctx: &mut Context, msg: &Message, cohort_name: &str, role: Role) {
-    let channel_name = format!("adventure-club: {}", cohort_name);
-    if let Some(guild) = msg.guild(&ctx.cache) {
-        // Find the role we created, change its permissions
-        let mut remove_messaging = Permissions::empty();
-        remove_messaging.insert(Permissions::SEND_MESSAGES);
-        remove_messaging.insert(Permissions::SEND_TTS_MESSAGES);
-        let everyone = PermissionOverwriteType::Role(get_everyone_role(ctx, msg).unwrap().id);
-        match guild.read().create_channel(&ctx.http, |c| c.name(channel_name)
+fn create_channel(
+    ctx: &mut Context,
+    msg: &Message,
+    channel_name: &str,
+    role: Role,
+) -> Result<GuildChannel, Error> {
+    let role_id = role.id;
+    let everyone_id = get_everyone_role(ctx, msg).unwrap().id;
+    let permission_set = mute_users_without_role_permset(role_id, everyone_id);
+
+    let guild = msg.guild(&ctx.cache).unwrap();
+    let new_channel = guild.read().create_channel(&ctx.http, |c| {
+        c.name(channel_name)
             .kind(ChannelType::Text)
-            .permissions(vec![PermissionOverwrite {
-                allow: Permissions::SEND_MESSAGES,
-                deny: Permissions::empty(),
-                kind: PermissionOverwriteType::Role(role.id)
-            }, PermissionOverwrite {
-                allow: Permissions::empty(),
-                deny: remove_messaging,
-                kind: everyone
-            }])
-        ) {
-            Ok(channel) => {
-                println!("Created channel");
-            },
-            Err(err) => {
-                println!("Channel already exists");
-            }
-        }
-    }
+            .permissions(permission_set)
+    });
+
+    new_channel
 }
 
 struct Handler;
@@ -115,10 +115,11 @@ fn main() {
     // When using the framework, we just declare any custom configurations
     // - Adds a prefix to all commands
     // - Grabs all commands in groups
-    client.with_framework(StandardFramework::new()
-        .configure(|c| c.prefix("!"))
-        .group(&GENERAL_GROUP)
-        .group(&MOD_GROUP)
+    client.with_framework(
+        StandardFramework::new()
+            .configure(|c| c.prefix("!"))
+            .group(&GENERAL_GROUP)
+            .group(&MOD_GROUP),
     );
 
     // Finally, start a single shard, and start listening to events.
@@ -142,10 +143,39 @@ fn mod_check(ctx: &mut Context, msg: &Message, _: &mut Args, _: &CommandOptions)
     false.into()
 }
 
-fn get_everyone_role(ctx: &mut Context, msg: & Message) -> Option<Role> {
+// Generate cohort and channel names
+fn gen_names(input_str: String) -> (String, String) {
+    let cohort_name = format!("{}", input_str);
+    let channel_name = format!("adventure-club: {}", cohort_name);
+
+    (cohort_name, channel_name)
+}
+
+fn mute_users_without_role_permset(
+    role_id: RoleId,
+    everyone_role_id: RoleId,
+) -> Vec<PermissionOverwrite> {
+    let mut remove_messaging = Permissions::empty();
+    remove_messaging.insert(Permissions::SEND_MESSAGES);
+    remove_messaging.insert(Permissions::SEND_TTS_MESSAGES);
+    vec![
+        PermissionOverwrite {
+            allow: Permissions::SEND_MESSAGES,
+            deny: Permissions::empty(),
+            kind: PermissionOverwriteType::Role(role_id),
+        },
+        PermissionOverwrite {
+            allow: Permissions::empty(),
+            deny: remove_messaging,
+            kind: PermissionOverwriteType::Role(everyone_role_id),
+        },
+    ]
+}
+
+fn get_everyone_role(ctx: &mut Context, msg: &Message) -> Option<Role> {
     let guild = msg.guild(&ctx.cache).unwrap();
     for (_, role) in guild.read().roles.iter() {
-        if role.name == "@everyone" { 
+        if role.name == "@everyone" {
             return Some(role.clone());
         }
     }
