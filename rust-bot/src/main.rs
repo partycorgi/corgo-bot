@@ -29,7 +29,7 @@ struct General;
 #[commands(create_cohort)]
 struct Mod;
 
-#[instrument]
+#[instrument(skip(ctx))]
 #[command]
 fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
     if let Err(why) = msg.channel_id.say(&ctx.http, "Pong!") {
@@ -41,7 +41,7 @@ fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
 // This command provisions out a channel with permissions
 // to read/write for users with the corresponding role. It
 // will also make the channel read-only for other users.
-#[instrument]
+#[instrument(skip(ctx))]
 #[command]
 fn create_cohort(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
     msg.channel_id
@@ -117,7 +117,7 @@ struct Handler;
 impl EventHandler for Handler {
     #[instrument]
     fn ready(&self, _: Context, _ready_info: serenity::model::gateway::Ready) {
-        info!(bot_is_ready = std::time::SystemTime::now());
+        info!(bot_is_ready = ?std::time::SystemTime::now());
     }
 }
 #[instrument]
@@ -166,7 +166,7 @@ fn main() {
         println!("Client error: {:?}", why);
     }
 }
-#[instrument]
+#[instrument(skip(ctx))]
 #[check]
 #[name = "Mod"]
 fn mod_check(ctx: &mut Context, msg: &Message, _: &mut Args, _: &CommandOptions) -> CheckResult {
