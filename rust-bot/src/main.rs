@@ -1,9 +1,9 @@
 use std::env;
 
 use libhoney;
+use tracing::{error, info, instrument};
 use tracing_honeycomb;
 use tracing_subscriber::layer::SubscriberExt;
-use tracing::{instrument, info, error};
 
 use serenity::{
     framework::standard::macros::{check, command, group},
@@ -72,7 +72,7 @@ fn create_role(ctx: &mut Context, msg: &Message, role_name: &str) -> Role {
     let role = match guild.read().role_by_name(role_name) {
         Some(role) => {
             let content = format!("{} Role already exists!", role.name);
-            info!(role_exists=true);
+            info!(role_exists = true);
             if let Err(error) = msg.channel_id.say(&ctx.http, content) {
                 error!(error.message = ?error);
                 println!("{:?}", error);
@@ -80,11 +80,11 @@ fn create_role(ctx: &mut Context, msg: &Message, role_name: &str) -> Role {
             role.clone()
         }
         None => {
-            info!(role_exists=false);
+            info!(role_exists = false);
             guild
-            .read()
-            .create_role(&ctx, |r| r.name(role_name))
-            .unwrap()
+                .read()
+                .create_role(&ctx, |r| r.name(role_name))
+                .unwrap()
         }
     };
     return role;
@@ -124,23 +124,27 @@ impl EventHandler for Handler {
 fn main() {
     // Configure the client with your Discord bot token in the environment.
     let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
-    //Sets up the tracing stuff. 
+    //Sets up the tracing stuff.
     let honeycomb_config = libhoney::Config {
         options: libhoney::client::Options {
-            api_key: env::var("HONEYCOMB_API_KEY").expect("expected a honeycomb api key in the environment"),
+            api_key: env::var("HONEYCOMB_API_KEY")
+                .expect("expected a honeycomb api key in the environment"),
             dataset: env::var("HONEYCOMB_DATASET_NAME").expect("expected a honeycomb dataset name"),
             ..libhoney::client::Options::default()
         },
         transmission_options: libhoney::transmission::Options::default(),
     };
 
-    let honeycomb_tracing_layer = tracing_honeycomb::new_honeycomb_telemetry_layer("honeycomb-service", honeycomb_config);
+    let honeycomb_tracing_layer =
+        tracing_honeycomb::new_honeycomb_telemetry_layer("honeycomb-service", honeycomb_config);
 
     let subscriber = tracing_subscriber::registry::Registry::default()
+        .with(tracing_subscriber::filter::LevelFilter::INFO)
         .with(tracing_subscriber::fmt::Layer::default()) //prints logs to console
-        .with(honeycomb_tracing_layer); //submits logs to honeycomb. 
+        .with(honeycomb_tracing_layer); //submits logs to honeycomb.
 
-    tracing::subscriber::set_global_default(subscriber).expect("setting global default tracer failed");
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("setting global default tracer failed");
 
     // Create a new instance of the Client, logging in as a bot. This will
     // automatically prepend your bot token with "Bot ", which is a requirement
