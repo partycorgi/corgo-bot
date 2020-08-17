@@ -7,7 +7,6 @@ const hny = new libhoney({
   transmission: "writer",
 });
 
-const CORGO_BOT_ID = "714618235458289804";
 // Create an instance of a Discord client
 const client = new Discord.Client();
 
@@ -23,7 +22,7 @@ client.on("ready", () => {
 client.on("message", (message) => {
   let ev = hny.newEvent();
   ev.add({ eventType: "message", authorId: message.author.id });
-  if (message.author.id === CORGO_BOT_ID) {
+  if (message.author.id === message.client.user.id) {
     ev.addField("isBot", true);
     ev.send();
     return;
