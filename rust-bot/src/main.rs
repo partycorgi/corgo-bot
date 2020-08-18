@@ -32,7 +32,7 @@ use serenity::{
 const CHANNEL__LISTENING_PARTY: u64 = 742445700998103132;
 
 #[group]
-#[commands(ping, pin)]
+#[commands(yee_claw, ping, pin)]
 struct General;
 
 #[group]
@@ -113,7 +113,15 @@ fn pin(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
         error!(err = ?e);
         println!("{}", e);
     }
-    
+
+    Ok(())
+}
+
+#[command]
+fn yee_claw(ctx: &mut Context, msg: &Message) -> CommandResult {
+    if let Err(why) = msg.channel_id.say(&ctx.http, "https://user-images.githubusercontent.com/8431042/90574972-5240c600-e188-11ea-9551-2f8d7f386e66.png") {
+        println!("Error sending message {}", why);
+    }
     Ok(())
 }
 
