@@ -46,8 +46,7 @@ fn pin(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
     let result = ctx
         .http
         .get_message(*msg.channel_id.as_u64(), message_id)
-        .and_then(|rmsg| rmsg.pin(&ctx.http))
-        .and_then(|_| msg.channel_id.say(&ctx.http, "Pinned! :shadescorgi:"));
+        .and_then(|rmsg| rmsg.pin(&ctx.http));
 
     if let Err(e) = result {
         println!("{}", e);
