@@ -17,6 +17,7 @@ use serenity::{
         permissions::Permissions,
     },
     prelude::*,
+    utils::MessageBuilder,
     Error,
 };
 
@@ -50,17 +51,23 @@ fn create_cohort(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandRes
     // Check for adventure club category id
     // You can quickly grab this from "Copy Id"
     // on the category
-    let category_id = env::var("A_CLUB_CAT_ID").expect("Double check that you set the adventure club category id properly").parse::<u64>()?;
+    let category_id = env::var("A_CLUB_CAT_ID")
+        .expect("Double check that you set the adventure club category id properly")
+        .parse::<u64>()?;
     let (cohort_name, channel_name) = gen_names(args.single::<String>().unwrap());
     let role = create_role(ctx, msg, &cohort_name);
-    let channel = create_channel(ctx, msg, &channel_name, category_id, role);
+    let channel = create_channel(ctx, msg, &channel_name, category_id, &role);
 
     match channel {
         Ok(channel) => {
-            let reply_msg = format!(
-                "Successfully created {}! Feel free to add users.",
-                channel.name
-            );
+            let reply_msg = MessageBuilder::new()
+                .push("Successfully created club channel: ")
+                .channel(channel)
+                .push("! Feel free to add users with the ")
+                .role(role)
+                .push(" role.")
+                .build();
+
             msg.reply(&ctx.http, reply_msg).unwrap();
         }
         Err(_) => {
@@ -87,7 +94,7 @@ fn create_role(ctx: &mut Context, msg: &Message, role_name: &str) -> Role {
             info!(role_exists = false);
             guild
                 .read()
-                .create_role(&ctx, |r| r.name(role_name))
+                .create_role(&ctx, |r| r.name(role_name).colour(16744330))
                 .unwrap()
         }
     };
@@ -100,8 +107,8 @@ fn create_channel(
     ctx: &mut Context,
     msg: &Message,
     channel_name: &str,
-    category_id: u64, 
-    role: Role,
+    category_id: u64,
+    role: &Role,
 ) -> Result<GuildChannel, Error> {
     let role_id = role.id;
     let everyone_id = get_everyone_role(ctx, msg).unwrap().id;
@@ -191,8 +198,8 @@ fn mod_check(ctx: &mut Context, msg: &Message, _: &mut Args, _: &CommandOptions)
 #[instrument]
 // Generate cohort and channel names
 fn gen_names(input_str: String) -> (String, String) {
-    let cohort_name = format!("{}", input_str);
-    let channel_name = format!("adventure-club: {}", cohort_name);
+    let cohort_name = format!("adventure-club: {}", input_str);
+    let channel_name = format!("{}", input_str);
 
     (cohort_name, channel_name)
 }
