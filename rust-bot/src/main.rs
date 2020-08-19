@@ -180,13 +180,13 @@ fn main() {
 #[check]
 #[name = "Mod"]
 fn mod_check(ctx: &mut Context, msg: &Message, _: &mut Args, _: &CommandOptions) -> CheckResult {
+    // Party Corgi - Mod Role Id = 639531892437286959
+    let mod_role_id: RoleId = 639531892437286959.into();
     if let Some(member) = msg.member(&ctx.cache) {
-        if let Ok(permissions) = member.permissions(&ctx.cache) {
-            return permissions.administrator().into();
-        }
+        return member.roles.contains(&mod_role_id).into();
     }
 
-    false.into()
+    return false.into();
 }
 #[instrument]
 // Generate cohort and channel names
