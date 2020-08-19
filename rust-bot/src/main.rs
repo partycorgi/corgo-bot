@@ -21,7 +21,7 @@ use serenity::{
 };
 
 #[group]
-#[commands(ping)]
+#[commands(ping, pin)]
 struct General;
 
 #[group]
@@ -36,6 +36,22 @@ fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
         println!("Error sending message: {}", why);
     }
     return Ok(());
+}
+
+#[instrument(skip(ctx))]
+#[command]
+fn pin(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
+    let message_id = args.single::<u64>()?;
+    let result = ctx
+        .http
+        .get_message(*msg.channel_id.as_u64(), message_id)
+        .and_then(|rmsg| rmsg.pin(&ctx.http))
+        .and_then(|_| msg.channel_id.say(&ctx.http, "Pinned! :shadescorgi:"));
+
+    if let Err(e) = result {
+        println!("{}", e);
+    }
+    Ok(())
 }
 
 // This command provisions out a channel with permissions
