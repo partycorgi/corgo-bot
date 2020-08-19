@@ -47,9 +47,13 @@ fn create_cohort(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandRes
     msg.channel_id
         .say(&ctx.http, "Spinning up Adventure Club...")?;
 
+    // Check for adventure club category id
+    // You can quickly grab this from "Copy Id"
+    // on the category
+    let category_id = env::var("A_CLUB_CAT_ID").expect("Double check that you set the adventure club category id properly").parse::<u64>()?;
     let (cohort_name, channel_name) = gen_names(args.single::<String>().unwrap());
     let role = create_role(ctx, msg, &cohort_name);
-    let channel = create_channel(ctx, msg, &channel_name, role);
+    let channel = create_channel(ctx, msg, &channel_name, category_id, role);
 
     match channel {
         Ok(channel) => {
@@ -96,6 +100,7 @@ fn create_channel(
     ctx: &mut Context,
     msg: &Message,
     channel_name: &str,
+    category_id: u64, 
     role: Role,
 ) -> Result<GuildChannel, Error> {
     let role_id = role.id;
@@ -105,6 +110,7 @@ fn create_channel(
     let guild = msg.guild(&ctx.cache).unwrap();
     let new_channel = guild.read().create_channel(&ctx.http, |c| {
         c.name(channel_name)
+            .category(category_id)
             .kind(ChannelType::Text)
             .permissions(permission_set)
     });
