@@ -40,8 +40,8 @@ fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
 
 #[instrument(skip(ctx))]
 #[command]
-fn pin(ctx: &mut Context, msg: &Message) -> CommandResult {
-    let message_id = msg.content.parse::<u64>()?;
+fn pin(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
+    let message_id = args.single::<u64>()?;
     let result = ctx
         .http
         .get_message(*msg.channel_id.as_u64(), message_id)
