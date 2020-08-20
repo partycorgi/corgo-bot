@@ -38,7 +38,7 @@ struct Mod;
 #[instrument(skip(ctx))]
 #[command]
 fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
-    let _result = register_dist_tracing_root(generate_trace_id_from_message(&msg), None);
+    let _result = register_dist_tracing_root(generate_trace_id_from_message(msg), None);
     if let Err(why) = msg.channel_id.say(&ctx.http, "Pong!") {
         error!(err = ?why);
         println!("Error sending message: {}", why);
@@ -50,7 +50,7 @@ fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
 #[instrument(skip(ctx))]
 #[command]
 fn pin(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
-    let _result = register_dist_tracing_root(generate_trace_id_from_message(&msg), None);
+    let _result = register_dist_tracing_root(generate_trace_id_from_message(msg), None);
     let message_id = args.single::<u64>()?;
     info!(pinned_message_id = ?message_id);
     let result = ctx
@@ -268,8 +268,11 @@ fn get_everyone_role(ctx: &mut Context, msg: &Message) -> Option<Role> {
     }
     return None;
 }
-
-fn generate_trace_id_from_message<'a>(msg: &'a Message) -> TraceId {
+// Generates a TraceId from the message.id. If the cast fails, create a random TraceId.
+// We do this so that we can have a single trace that spans the length of the message.
+// This way we can use the "before" & "after" fns in a single trace.
+//Note that we assume that message ids are permanently unique to do this. 
+fn generate_trace_id_from_message(msg: &Message) -> TraceId {
     match TraceId::from_str(&msg.id.to_string()) {
         Ok(trace_id) => trace_id,
         Err(err) => {
