@@ -164,6 +164,8 @@ struct Handler;
 impl EventHandler for Handler {
     #[instrument]
     fn ready(&self, _: Context, _ready_info: serenity::model::gateway::Ready) {
+        //generate a trace for the ready command so the ready info can be sent to Honeycomb. 
+       let _result = register_dist_tracing_root(TraceId::generate(), None);
         info!(bot_is_ready = ?std::time::SystemTime::now());
     }
 }
