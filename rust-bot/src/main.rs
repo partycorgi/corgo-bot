@@ -1,8 +1,13 @@
-use std::env;
+use std::{
+    env,
+    str::FromStr
+};
 
 use libhoney;
 use tracing::{error, info, instrument};
-use tracing_honeycomb;
+use tracing_honeycomb:: {
+    register_dist_tracing_root, TraceId
+};
 use tracing_subscriber::layer::SubscriberExt;
 
 use serenity::{
@@ -33,25 +38,35 @@ struct Mod;
 #[instrument(skip(ctx))]
 #[command]
 fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
+    let _result = register_dist_tracing_root(generate_trace_id_from_message(&msg), None);
     if let Err(why) = msg.channel_id.say(&ctx.http, "Pong!") {
+        error!(err = ?why);
         println!("Error sending message: {}", why);
     }
+    info!("said_pong");
     return Ok(());
 }
 
 #[instrument(skip(ctx))]
 #[command]
 fn pin(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
+    let _result = register_dist_tracing_root(generate_trace_id_from_message(&msg), None);
     let message_id = args.single::<u64>()?;
+    info!(pinned_message_id = ?message_id);
     let result = ctx
         .http
         .get_message(*msg.channel_id.as_u64(), message_id)
-        .and_then(|rmsg| rmsg.pin(&ctx.http))
+        .and_then(|rmsg| {
+            info!(pinned_message = ?rmsg);
+            rmsg.pin(&ctx.http)
+        })
         .and_then(|_| msg.channel_id.say(&ctx.http, "Pinned! :shadescorgi:"));
 
     if let Err(e) = result {
+        error!(err = ?e);
         println!("{}", e);
     }
+    
     Ok(())
 }
 
@@ -71,9 +86,10 @@ fn create_cohort(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandRes
         .expect("Double check that you set the adventure club category id properly")
         .parse::<u64>()?;
     let (cohort_name, channel_name) = gen_names(args.single::<String>().unwrap());
+    info!(?cohort_name, ?channel_name, channel = tracing::field::Empty, role = tracing::field::Empty, err = tracing::field::Empty);
     let role = create_role(ctx, msg, &cohort_name);
     let channel = create_channel(ctx, msg, &channel_name, category_id, &role);
-
+    info!(?role, ?channel);
     match channel {
         Ok(channel) => {
             let reply_msg = MessageBuilder::new()
@@ -83,11 +99,12 @@ fn create_cohort(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandRes
                 .role(role)
                 .push(" role.")
                 .build();
-
+            info!(?reply_msg);
             msg.reply(&ctx.http, reply_msg).unwrap();
         }
-        Err(_) => {
+        Err(err) => {
             msg.reply(&ctx.http, "Failed to create cohort").unwrap();
+            info!(?err)
         }
     };
 
@@ -101,9 +118,10 @@ fn create_role(ctx: &mut Context, msg: &Message, role_name: &str) -> Role {
             let content = format!("{} Role already exists!", role.name);
             info!(role_exists = true);
             if let Err(error) = msg.channel_id.say(&ctx.http, content) {
-                error!(error.message = ?error);
+                error!(err = ?error);
                 println!("{:?}", error);
             };
+            info!(role_exists = true, ?role);
             role.clone()
         }
         None => {
@@ -137,7 +155,7 @@ fn create_channel(
             .kind(ChannelType::Text)
             .permissions(permission_set)
     });
-
+    info!(?new_channel);
     new_channel
 }
 #[derive(Debug)]
@@ -195,7 +213,7 @@ fn main() {
     // Shards will automatically attempt to reconnect, and will perform
     // exponential backoff until it reconnects.
     if let Err(why) = client.start() {
-        error!(?why);
+        error!(err = ?why);
         println!("Client error: {:?}", why);
     }
 }
@@ -249,4 +267,15 @@ fn get_everyone_role(ctx: &mut Context, msg: &Message) -> Option<Role> {
         }
     }
     return None;
+}
+
+fn generate_trace_id_from_message<'a>(msg: &'a Message) -> TraceId {
+    match TraceId::from_str(&msg.id.to_string()) {
+        Ok(trace_id) => trace_id,
+        Err(err) => {
+            // if casting errors, generate a fresh id. 
+            error!(message_id = %msg.id, ?err,  "error_converting_message_id_to_trace" );
+            TraceId::generate()
+        }
+    }
 }
