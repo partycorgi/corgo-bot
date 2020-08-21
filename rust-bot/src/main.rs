@@ -22,12 +22,14 @@ use serenity::{
         guild::Role,
         id::RoleId,
         permissions::Permissions,
-        prelude::{Message, UserId},
+        prelude::{Message, MessageActivityKind, UserId},
     },
     prelude::*,
     utils::MessageBuilder,
     Error,
 };
+
+const CHANNEL__LISTENING_PARTY: u64 = 742445700998103132;
 
 #[group]
 #[commands(ping, pin)]
@@ -213,7 +215,23 @@ impl EventHandler for Handler {
        let _result = register_dist_tracing_root(TraceId::generate(), None);
         info!(bot_is_ready = ?std::time::SystemTime::now());
     }
+    #[instrument(skip(_ctx, _new_message))]
+    fn message(&self, _ctx: Context, _new_message: Message) {
+        if _new_message.channel_id == CHANNEL__LISTENING_PARTY {
+            match &_new_message.activity {
+                Some(activity) => match activity.kind {
+                    MessageActivityKind::LISTEN => match _new_message.pin(_ctx.http) {
+                        Ok(_) => {}
+                        Err(_) => {}
+                    },
+                    _ => (),
+                },
+                None => (),
+            }
+        }
+    }
 }
+
 #[instrument]
 fn main() {
     // Configure the client with your Discord bot token in the environment.
