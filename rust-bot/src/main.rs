@@ -121,7 +121,9 @@ fn pin(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
 
 #[command]
 #[aliases("yee-claw")]
+#[instrument(skip(ctx))]
 fn yee_claw(ctx: &mut Context, msg: &Message) -> CommandResult {
+let _result = register_dist_tracing_root(generate_trace_id_from_message(msg), None);
     if let Err(why) = msg.channel_id.send_message(&ctx.http, |m| {
         m.content("Yeee-claw!")
         .add_file(AttachmentType::Path(Path::new("./yee-claw.png")));
