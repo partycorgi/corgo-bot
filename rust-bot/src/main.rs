@@ -1,5 +1,6 @@
 use std::{
     env,
+    path::Path,
     str::FromStr
 };
 
@@ -17,6 +18,7 @@ use serenity::{
         help_commands, macros::help, Args, CheckResult, CommandGroup, CommandOptions,
         CommandResult, HelpOptions, StandardFramework,
     },
+    http::AttachmentType,
     model::{
         channel::{ChannelType, GuildChannel, PermissionOverwrite, PermissionOverwriteType},
         guild::Role,
@@ -118,8 +120,13 @@ fn pin(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
 }
 
 #[command]
+#[aliases("yee-claw")]
 fn yee_claw(ctx: &mut Context, msg: &Message) -> CommandResult {
-    if let Err(why) = msg.channel_id.say(&ctx.http, "https://user-images.githubusercontent.com/8431042/90574972-5240c600-e188-11ea-9551-2f8d7f386e66.png") {
+    if let Err(why) = msg.channel_id.send_message(&ctx.http, |m| {
+        m.content("Yeee-claw!")
+        .add_file(AttachmentType::Path(Path::new("./yee-claw.png")));
+        m
+    }) {
         println!("Error sending message {}", why);
     }
     Ok(())
