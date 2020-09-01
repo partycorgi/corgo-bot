@@ -22,6 +22,10 @@ use serenity::{
 #[commands(create_cohort)]
 struct Mod;
 
+// Party Corgi - Mod Role Id = 639531892437286959
+const MOD_ROLE_ID: u64 = 639531892437286959;
+
+
 // This command provisions out a channel with permissions
 // to read/write for users with the corresponding role. It
 // will also make the channel read-only for other users.
@@ -121,8 +125,7 @@ fn create_channel(
 #[check]
 #[name = "Mod"]
 fn mod_check(ctx: &mut Context, msg: &Message, _: &mut Args, _: &CommandOptions) -> CheckResult {
-    // Party Corgi - Mod Role Id = 639531892437286959
-    let mod_role_id: RoleId = 639531892437286959.into();
+    let mod_role_id: RoleId = MOD_ROLE_ID.into();
     if let Some(member) = msg.member(&ctx.cache) {
         return member.roles.contains(&mod_role_id).into();
     }
@@ -142,9 +145,10 @@ fn mute_users_without_role_permset(
     role_id: RoleId,
     everyone_role_id: RoleId,
 ) -> Vec<PermissionOverwrite> {
-    let mut remove_messaging = Permissions::empty();
-    remove_messaging.insert(Permissions::SEND_MESSAGES);
-    remove_messaging.insert(Permissions::SEND_TTS_MESSAGES);
+    let mod_role_id: RoleId = MOD_ROLE_ID.into();
+    let mut messaging_perms = Permissions::empty();
+    messaging_perms.insert(Permissions::SEND_MESSAGES);
+    messaging_perms.insert(Permissions::SEND_TTS_MESSAGES);
     vec![
         PermissionOverwrite {
             allow: Permissions::SEND_MESSAGES,
@@ -152,8 +156,13 @@ fn mute_users_without_role_permset(
             kind: PermissionOverwriteType::Role(role_id),
         },
         PermissionOverwrite {
+            allow: messaging_perms,
+            deny: Permissions::empty(),
+            kind: PermissionOverwriteType::Role(mod_role_id),
+        },
+        PermissionOverwrite {
             allow: Permissions::empty(),
-            deny: remove_messaging,
+            deny: messaging_perms,
             kind: PermissionOverwriteType::Role(everyone_role_id),
         },
     ]
