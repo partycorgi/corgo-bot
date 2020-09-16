@@ -19,12 +19,40 @@ use serenity::{
 
 #[group]
 #[checks(Mod)]
-#[commands(create_cohort)]
+#[commands(add_role_to_users, create_cohort)]
 struct Mod;
 
 // Party Corgi - Mod Role Id = 639531892437286959
 const MOD_ROLE_ID: u64 = 639531892437286959;
 
+#[command]
+#[aliases("add_role", "add-role")]
+fn add_role_to_users(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
+    if (args.len() as u32) < 2 {
+        error!(err = "Didn't pass enough arguments to add_role");
+        msg.reply(&ctx.http, "You don't have enough args!").unwrap();
+    } else {
+        let role_id = args.single::<RoleId>().unwrap();
+        let guild = msg.guild(&ctx.cache).unwrap();
+
+        for arg in args.iter::<String>() {
+            let member_name = &arg.unwrap();
+            match guild.read().member_named(member_name) {
+                Some(member) => {
+                    if let Err(failed_add_role) = member.clone().add_role(&ctx.http, &role_id) {
+                        error!(err = ?failed_add_role);
+                    }
+                }
+                None => {
+                    let err_msg = format!("Member with the name {} wasn't found", member_name);
+                    error!(err = ?err_msg);
+                    msg.reply(&ctx.http, err_msg).unwrap();
+                }
+            }
+        }
+    }
+    Ok(())
+}
 
 // This command provisions out a channel with permissions
 // to read/write for users with the corresponding role. It
