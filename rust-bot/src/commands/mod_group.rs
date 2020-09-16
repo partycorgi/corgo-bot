@@ -39,9 +39,10 @@ fn add_role_to_users(ctx: &mut Context, msg: &Message, mut args: Args) -> Comman
             let member_name = &arg.unwrap();
             match guild.read().member_named(member_name) {
                 Some(member) => {
-                    if let Err(failed_add_role) = member.clone().add_role(&ctx.http, &role_id) {
-                        error!(err = ?failed_add_role);
-                    }
+                    guild.read()
+                    .member(&ctx.http, member.user_id())?
+                    .add_role(&ctx.http, &role_id)
+                    .unwrap_or_else(|err| { error!(err = ?err)});
                 }
                 None => {
                     let err_msg = format!("Member with the name {} wasn't found", member_name);
