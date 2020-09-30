@@ -2,8 +2,8 @@ use std::{env, path::Path, str::FromStr};
 
 use libhoney;
 use std::collections::HashSet;
-use tracing::{error, info, instrument};
-use tracing_honeycomb::{register_dist_tracing_root, TraceId};
+use tracing::{error, event, info, instrument, Level};
+use tracing_honeycomb::{current_dist_trace_ctx, register_dist_tracing_root, TraceId};
 use tracing_subscriber::layer::SubscriberExt;
 
 use serenity::{
@@ -73,11 +73,15 @@ fn my_help(
 #[command]
 fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
     let _result = register_dist_tracing_root(generate_trace_id_from_message(msg), None);
+    event!(
+        Level::INFO,
+        command = "ping",
+        channel_id = msg.channel_id.as_u64()
+    );
     if let Err(why) = msg.channel_id.say(&ctx.http, "Pong!") {
         error!(err = ?why);
         println!("Error sending message: {}", why);
     }
-    info!("said_pong");
     return Ok(());
 }
 
@@ -85,13 +89,19 @@ fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
 #[command]
 fn pin(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
     let _result = register_dist_tracing_root(generate_trace_id_from_message(msg), None);
+
     let message_id = args.single::<u64>()?;
-    info!(pinned_message_id = ?message_id);
+    event!(
+        Level::INFO,
+        command = "pin",
+        pinned_message_id = ?message_id,
+        channel_id = msg.channel_id.as_u64()
+    );
     let result = ctx
         .http
         .get_message(*msg.channel_id.as_u64(), message_id)
         .and_then(|rmsg| {
-            info!(pinned_message = ?rmsg);
+            info!(pinned_message_content = ?rmsg);
             rmsg.pin(&ctx.http)
         });
 
@@ -108,6 +118,12 @@ fn pin(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
 #[aliases("yee-claw")]
 fn yee_claw(ctx: &mut Context, msg: &Message) -> CommandResult {
     let _result = register_dist_tracing_root(generate_trace_id_from_message(msg), None);
+    event!(
+        Level::INFO,
+        command = "yee-claw",
+        channel_id = msg.channel_id.as_u64()
+    );
+    // println!("{:?}", _result);
     if let Err(why) = msg.channel_id.send_message(&ctx.http, |m| {
         m.content("Yeee-claw!")
             .add_file(AttachmentType::Path(Path::new("./yee-claw.png")));
@@ -125,11 +141,16 @@ impl EventHandler for Handler {
     #[instrument]
     fn ready(&self, _: Context, _ready_info: serenity::model::gateway::Ready) {
         //generate a trace for the ready command so the ready info can be sent to Honeycomb.
-        let _result = register_dist_tracing_root(TraceId::generate(), None);
+        // let _result = register_dist_tracing_root(TraceId::generate(), None);
         info!(bot_is_ready = ?std::time::SystemTime::now());
     }
     #[instrument(skip(_ctx, _new_message))]
     fn message(&self, _ctx: Context, _new_message: Message) {
+        event!(
+            Level::INFO,
+            msg_id = _new_message.id.as_u64(),
+            channel_id = _new_message.channel_id.as_u64()
+        );
         if _new_message.channel_id == CHANNEL__LISTENING_PARTY {
             match &_new_message.activity {
                 Some(activity) => match activity.kind {
@@ -145,23 +166,24 @@ impl EventHandler for Handler {
     }
 }
 
-#[instrument]
-fn main() {
-    // Configure the client with your Discord bot token in the environment.
-    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
+fn register_tracing() {
     //Sets up the tracing stuff.
+    let honeycomb_api_key =
+        env::var("HONEYCOMB_API_KEY").expect("expected a honeycomb api key in the environment");
+    let honeycomb_dataset_name =
+        env::var("HONEYCOMB_DATASET_NAME").expect("expected a honeycomb dataset name");
+
     let honeycomb_config = libhoney::Config {
         options: libhoney::client::Options {
-            api_key: env::var("HONEYCOMB_API_KEY")
-                .expect("expected a honeycomb api key in the environment"),
-            dataset: env::var("HONEYCOMB_DATASET_NAME").expect("expected a honeycomb dataset name"),
+            api_key: honeycomb_api_key,
+            dataset: honeycomb_dataset_name,
             ..libhoney::client::Options::default()
         },
         transmission_options: libhoney::transmission::Options::default(),
     };
 
     let honeycomb_tracing_layer =
-        tracing_honeycomb::new_honeycomb_telemetry_layer("honeycomb-service", honeycomb_config);
+        tracing_honeycomb::new_honeycomb_telemetry_layer("corgo-bot", honeycomb_config);
 
     let subscriber = tracing_subscriber::registry::Registry::default()
         .with(tracing_subscriber::filter::LevelFilter::INFO)
@@ -170,6 +192,14 @@ fn main() {
 
     tracing::subscriber::set_global_default(subscriber)
         .expect("setting global default tracer failed");
+}
+
+#[instrument]
+fn main() {
+    register_tracing();
+    // Configure the client with your Discord bot token in the environment.
+    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
+    // subscriber.init();
 
     // Create a new instance of the Client, logging in as a bot. This will
     // automatically prepend your bot token with "Bot ", which is a requirement
