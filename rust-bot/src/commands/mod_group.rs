@@ -28,26 +28,34 @@ const MOD_ROLE_ID: u64 = 639531892437286959;
 #[command]
 #[aliases("add_role", "add-role")]
 fn add_role_to_users(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
-    if (args.len() as u32) < 2 {
+    if args.len() < 2 {
         error!(err = "Didn't pass enough arguments to add_role");
-        msg.reply(&ctx.http, "You don't have enough args!").unwrap();
+        msg.reply(&ctx.http, "You don't have enough args!")?;
     } else {
-        let role_id = args.single::<RoleId>().unwrap();
+        let role_id = args.single::<RoleId>()?;
         let guild = msg.guild(&ctx.cache).unwrap();
 
         for arg in args.iter::<String>() {
-            let member_name = &arg.unwrap();
+            let member_name = &arg?;
             match guild.read().member_named(member_name) {
                 Some(member) => {
-                    guild.read()
-                    .member(&ctx.http, member.user_id())?
-                    .add_role(&ctx.http, &role_id)
-                    .unwrap_or_else(|err| { error!(err = ?err)});
+                    guild
+                        .read()
+                        .member(&ctx.http, member.user_id())?
+                        .add_role(&ctx.http, &role_id)
+                        .unwrap_or_else(|_err| {
+                            let err_msg = format!(
+                                "Role ID {} didn't exist or couldn't be successfully added.",
+                                role_id
+                            );
+                            error!(err = ?err_msg);
+                            msg.reply(&ctx.http, err_msg).unwrap();
+                        });
                 }
                 None => {
                     let err_msg = format!("Member with the name {} wasn't found", member_name);
                     error!(err = ?err_msg);
-                    msg.reply(&ctx.http, err_msg).unwrap();
+                    msg.reply(&ctx.http, err_msg)?;
                 }
             }
         }
