@@ -13,14 +13,16 @@ use serenity::{
         StandardFramework,
     },
     http::AttachmentType,
-    model::prelude::{Guild, GuildId, Member, Message, MessageActivityKind, UserId},
+    model::prelude::{ChannelId, GuildId, Member, Message, MessageActivityKind, UserId},
     prelude::*,
     utils::MessageBuilder,
 };
 
 mod commands;
+mod welcome_message;
 use commands::mod_group::MOD_GROUP;
 
+const CHANNEL__GENERAL: u64 = 601625579791581249;
 const CHANNEL__LISTENING_PARTY: u64 = 742445700998103132;
 
 #[group]
@@ -145,36 +147,23 @@ impl EventHandler for Handler {
         }
     }
 
-    #[instrument(skip(ctx, guild_id, new_member))]
-    fn guild_member_addition(&self, ctx: Context, guild_id: GuildId, new_member: Member) {
-        // Think about handling the option cases more concretely
-        // for observability
+    #[instrument(skip(ctx, _guild_id))]
+    fn guild_member_addition(&self, ctx: Context, _guild_id: GuildId, new_member: Member) {
+        let rand_msg = welcome_message::get_welcome_message();
+        let channel = ChannelId(CHANNEL__GENERAL);
 
-        // 1. Determining where to send message
-        match guild_id
-            .to_guild_cached(&ctx.cache)
-            .unwrap()
-            .read()
-            .channel_id_from_name(&ctx.cache, "general")
-        {
-            Some(channel) => {
-                if let Err(err_msg) = channel.send_message(&ctx.http, |msg| {
-                    let welcome_message = MessageBuilder::new()
-                        .push("Welcome to the server, ")
-                        .mention(&new_member)
-                        .push("!")
-                        .build();
+        if let Err(err_msg) = channel.send_message(&ctx.http, |msg| {
+            let welcome_message = MessageBuilder::new()
+                .push(&rand_msg.before_mention)
+                .mention(&new_member)
+                .push(&rand_msg.after_mention)
+                .build();
 
-                    msg.content(welcome_message);
+            msg.content(welcome_message);
 
-                    msg
-                }) {
-                    error!(err = ?err_msg);
-                }
-            }
-            None => {
-                error!(err = "No channel returned");
-            }
+            msg
+        }) {
+            error!(err = ?err_msg);
         }
     }
 }
