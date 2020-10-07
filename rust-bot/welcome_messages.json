@@ -2,5 +2,9 @@
   {
     "before_mention": "Welcome our new party corgi, ",
     "after_mention": "!"
+  },
+  {
+    "before_mention": "Hey, ",
+    "after_mention": "! Welcome to the party!"
   }
 ]
