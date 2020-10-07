@@ -13,13 +13,15 @@ use serenity::{
         StandardFramework,
     },
     http::AttachmentType,
-    model::prelude::{Message, MessageActivityKind, UserId},
-    prelude::*,
+    model::prelude::{ChannelId, GuildId, Member, Message, MessageActivityKind, UserId},
+    prelude::*
 };
 
 mod commands;
+mod welcome_message;
 use commands::mod_group::MOD_GROUP;
 
+const CHANNEL__GENERAL: u64 = 601625579791581249;
 const CHANNEL__LISTENING_PARTY: u64 = 742445700998103132;
 
 #[group]
@@ -141,6 +143,18 @@ impl EventHandler for Handler {
                 },
                 None => (),
             }
+        }
+    }
+
+    #[instrument(skip(ctx, _guild_id))]
+    fn guild_member_addition(&self, ctx: Context, _guild_id: GuildId, new_member: Member) {
+        let channel = ChannelId(CHANNEL__GENERAL);
+
+        if let Err(err_msg) = channel.send_message(&ctx.http, |msg| {
+            msg.content(welcome_message::get_welcome_message(&new_member));
+            msg
+        }) {
+            error!(err = ?err_msg);
         }
     }
 }
