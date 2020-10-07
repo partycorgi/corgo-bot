@@ -14,8 +14,7 @@ use serenity::{
     },
     http::AttachmentType,
     model::prelude::{ChannelId, GuildId, Member, Message, MessageActivityKind, UserId},
-    prelude::*,
-    utils::MessageBuilder,
+    prelude::*
 };
 
 mod commands;
@@ -149,18 +148,10 @@ impl EventHandler for Handler {
 
     #[instrument(skip(ctx, _guild_id))]
     fn guild_member_addition(&self, ctx: Context, _guild_id: GuildId, new_member: Member) {
-        let rand_msg = welcome_message::get_welcome_message();
         let channel = ChannelId(CHANNEL__GENERAL);
 
         if let Err(err_msg) = channel.send_message(&ctx.http, |msg| {
-            let welcome_message = MessageBuilder::new()
-                .push(&rand_msg.before_mention)
-                .mention(&new_member)
-                .push(&rand_msg.after_mention)
-                .build();
-
-            msg.content(welcome_message);
-
+            msg.content(welcome_message::get_welcome_message(&new_member));
             msg
         }) {
             error!(err = ?err_msg);
