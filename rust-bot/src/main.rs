@@ -1,20 +1,27 @@
-use std::{env, path::Path, str::FromStr};
+use std::{
+    collections::HashSet, env, path::Path, str::FromStr,
+};
 
-use libhoney;
-use std::collections::HashSet;
 use tracing::{error, info, instrument};
-use tracing_honeycomb::{register_dist_tracing_root, TraceId};
-use tracing_subscriber::layer::SubscriberExt;
 
 use serenity::{
-    framework::standard::macros::{command, group},
+    async_trait, framework::standard::help_commands,
+    model::channel::MessageActivityKind,
+};
+use serenity::{
+    client::{Client, Context, EventHandler},
+    http::AttachmentType,
+};
+use serenity::{
+    framework::standard::Args, model::channel::Message,
+};
+use serenity::{
     framework::standard::{
-        help_commands, macros::help, Args, CommandGroup, CommandResult, HelpOptions,
+        macros::{command, group, help},
+        CommandGroup, CommandResult, HelpOptions,
         StandardFramework,
     },
-    http::AttachmentType,
-    model::prelude::{Message, MessageActivityKind, UserId},
-    prelude::*,
+    model::id::UserId,
 };
 
 mod commands;
@@ -58,22 +65,39 @@ If you want more information about a specific command, just pass the command as 
 // cases of ~~strikethrough-commands~~, but only if
 // `strikethrough_commands_tip_{dm, guild}` aren't specified.
 // If you pass in a value, it will be displayed instead.
-fn my_help(
-    context: &mut Context,
+async fn my_help(
+    context: &Context,
     msg: &Message,
     args: Args,
     help_options: &'static HelpOptions,
     groups: &[&'static CommandGroup],
     owners: HashSet<UserId>,
 ) -> CommandResult {
-    help_commands::with_embeds(context, msg, args, help_options, groups, owners).into()
+    match help_commands::with_embeds(
+        context,
+        msg,
+        args,
+        help_options,
+        groups,
+        owners,
+    )
+    .await
+    {
+        Some(_) => CommandResult::Ok(()),
+        None => {
+            CommandResult::Err("help failed to send".into())
+        }
+    }
 }
 
-#[instrument(skip(ctx))]
 #[command]
-fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
-    let _result = register_dist_tracing_root(generate_trace_id_from_message(msg), None);
-    if let Err(why) = msg.channel_id.say(&ctx.http, "Pong!") {
+async fn ping(
+    ctx: &Context,
+    msg: &Message,
+) -> CommandResult {
+    if let Err(why) =
+        msg.channel_id.say(&ctx.http, "Pong!").await
+    {
         error!(err = ?why);
         println!("Error sending message: {}", why);
     }
@@ -81,19 +105,21 @@ fn ping(ctx: &mut Context, msg: &Message) -> CommandResult {
     return Ok(());
 }
 
-#[instrument(skip(ctx))]
 #[command]
-fn pin(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
-    let _result = register_dist_tracing_root(generate_trace_id_from_message(msg), None);
+async fn pin(
+    ctx: &Context,
+    msg: &Message,
+    mut args: Args,
+) -> CommandResult {
     let message_id = args.single::<u64>()?;
     info!(pinned_message_id = ?message_id);
-    let result = ctx
+    let message_result = ctx
         .http
         .get_message(*msg.channel_id.as_u64(), message_id)
-        .and_then(|rmsg| {
-            info!(pinned_message = ?rmsg);
-            rmsg.pin(&ctx.http)
-        });
+        .await?;
+
+    info!(pinned_message = ?message_result);
+    let result = message_result.pin(&ctx.http).await;
 
     if let Err(e) = result {
         error!(err = ?e);
@@ -103,16 +129,24 @@ fn pin(ctx: &mut Context, msg: &Message, mut args: Args) -> CommandResult {
     Ok(())
 }
 
-#[instrument(skip(ctx))]
 #[command]
 #[aliases("yee-claw")]
-fn yee_claw(ctx: &mut Context, msg: &Message) -> CommandResult {
-    let _result = register_dist_tracing_root(generate_trace_id_from_message(msg), None);
-    if let Err(why) = msg.channel_id.send_message(&ctx.http, |m| {
-        m.content("Yeee-claw!")
-            .add_file(AttachmentType::Path(Path::new("./yee-claw.png")));
-        m
-    }) {
+async fn yee_claw(
+    ctx: &Context,
+    msg: &Message,
+) -> CommandResult {
+    if let Err(why) = msg
+        .channel_id
+        .send_message(&ctx.http, |m| {
+            m.content("Yeee-claw!").add_file(
+                AttachmentType::Path(Path::new(
+                    "./yee-claw.png",
+                )),
+            );
+            m
+        })
+        .await
+    {
         println!("Error sending message {}", why);
     }
     Ok(())
@@ -121,22 +155,27 @@ fn yee_claw(ctx: &mut Context, msg: &Message) -> CommandResult {
 #[derive(Debug)]
 struct Handler;
 
+#[async_trait]
 impl EventHandler for Handler {
-    #[instrument]
-    fn ready(&self, _: Context, _ready_info: serenity::model::gateway::Ready) {
-        //generate a trace for the ready command so the ready info can be sent to Honeycomb.
-        let _result = register_dist_tracing_root(TraceId::generate(), None);
-        info!(bot_is_ready = ?std::time::SystemTime::now());
-    }
-    #[instrument(skip(_ctx, _new_message))]
-    fn message(&self, _ctx: Context, _new_message: Message) {
-        if _new_message.channel_id == CHANNEL__LISTENING_PARTY {
+    async fn message(
+        &self,
+        _ctx: Context,
+        _new_message: Message,
+    ) {
+        if _new_message.channel_id
+            == CHANNEL__LISTENING_PARTY
+        {
             match &_new_message.activity {
                 Some(activity) => match activity.kind {
-                    MessageActivityKind::LISTEN => match _new_message.pin(_ctx.http) {
-                        Ok(_) => {}
-                        Err(_) => {}
-                    },
+                    MessageActivityKind::LISTEN => {
+                        match _new_message
+                            .pin(_ctx.http)
+                            .await
+                        {
+                            Ok(_) => {}
+                            Err(_) => {}
+                        }
+                    }
                     _ => (),
                 },
                 None => (),
@@ -145,69 +184,35 @@ impl EventHandler for Handler {
     }
 }
 
-#[instrument]
-fn main() {
+#[tokio::main]
+async fn main() {
     // Configure the client with your Discord bot token in the environment.
-    let token = env::var("DISCORD_TOKEN").expect("Expected a token in the environment");
-    //Sets up the tracing stuff.
-    let honeycomb_config = libhoney::Config {
-        options: libhoney::client::Options {
-            api_key: env::var("HONEYCOMB_API_KEY")
-                .expect("expected a honeycomb api key in the environment"),
-            dataset: env::var("HONEYCOMB_DATASET_NAME").expect("expected a honeycomb dataset name"),
-            ..libhoney::client::Options::default()
-        },
-        transmission_options: libhoney::transmission::Options::default(),
-    };
+    let token = env::var("DISCORD_TOKEN")
+        .expect("Expected a token in the environment");
+    // set up tracing
+    tracing_subscriber::fmt()
+        .event_format(
+            tracing_subscriber::fmt::format::json(),
+        )
+        .init();
+    let framework = StandardFramework::new()
+        .configure(|c| c.prefix("!"))
+        .help(&MY_HELP)
+        .group(&GENERAL_GROUP)
+        .group(&MOD_GROUP);
 
-    let honeycomb_tracing_layer =
-        tracing_honeycomb::new_honeycomb_telemetry_layer("honeycomb-service", honeycomb_config);
-
-    let subscriber = tracing_subscriber::registry::Registry::default()
-        .with(tracing_subscriber::filter::LevelFilter::INFO)
-        .with(tracing_subscriber::fmt::Layer::default()) //prints logs to console
-        .with(honeycomb_tracing_layer); //submits logs to honeycomb.
-
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("setting global default tracer failed");
-
-    // Create a new instance of the Client, logging in as a bot. This will
-    // automatically prepend your bot token with "Bot ", which is a requirement
-    // by Discord for bot users.
-    let mut client = Client::new(&token, Handler).expect("Err creating client");
-
-    // When using the framework, we just declare any custom configurations
-    // - Adds a prefix to all commands
-    // - Grabs all commands in groups
-    client.with_framework(
-        StandardFramework::new()
-            .configure(|c| c.prefix("!"))
-            .help(&MY_HELP)
-            .group(&GENERAL_GROUP)
-            .group(&MOD_GROUP),
-    );
+    let mut client = Client::builder(token)
+        .event_handler(Handler)
+        .framework(framework)
+        .await
+        .expect("Error creating client");
 
     // Finally, start a single shard, and start listening to events.
     //
     // Shards will automatically attempt to reconnect, and will perform
     // exponential backoff until it reconnects.
-    if let Err(why) = client.start() {
+    if let Err(why) = client.start().await {
         error!(err = ?why);
         println!("Client error: {:?}", why);
-    }
-}
-
-// Generates a TraceId from the message.id. If the cast fails, create a random TraceId.
-// We do this so that we can have a single trace that spans the length of the message.
-// This way we can use the "before" & "after" fns in a single trace.
-//Note that we assume that message ids are permanently unique to do this.
-fn generate_trace_id_from_message(msg: &Message) -> TraceId {
-    match TraceId::from_str(&msg.id.to_string()) {
-        Ok(trace_id) => trace_id,
-        Err(err) => {
-            // if casting errors, generate a fresh id.
-            error!(message_id = %msg.id, ?err,  "error_converting_message_id_to_trace" );
-            TraceId::generate()
-        }
     }
 }
